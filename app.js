@@ -1,6 +1,7 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
+const { get } = require("lodash");
 const app = express(); 
 
 app.set('view engine', 'ejs');
@@ -34,8 +35,14 @@ const item3 = new Item ({
 
 const defaultItems = [item1, item2, item3];
 
+const listSchema = new mongoose.Schema({
+    name: String,
+    toDo: [itemSchema]
+})
+
+const List = mongoose.model("list", listSchema);
+
 app.get("/", function(req, res){
-   
     Item.find(function(err, items){
         if(err){
             console.log(err);
@@ -45,37 +52,41 @@ app.get("/", function(req, res){
                 if(err){
                     console.log(err);
                 }else{
-                    console.log("Sucessfully data added");
                     res.redirect("/");
                 }
             })
     }else{
-        console.log("No Data added!");
-        res.render("list", {listTitle: "Today", itemsList: items});
+            res.render("list", {listTitle: "Today", itemsList: items});
     }
 }) 
 });
 
 app.post("/", function(req, res){
 
-    if( req.body.list === "Work"){
-        let item = req.body.newItem
-        work.push(item);
-        res.redirect("/work");
-    }else{
-        let itemName = req.body.newItem;
-        const newItem = new Item ({
-            name: itemName
-        })
-        newItem.save();
-      //  items.push(item);
+    const listName = req.body.list;
+    const itemName = req.body.newItem;
+
+    const item = new Item({
+        name: itemName
+    });
+
+    if (listName === "Today"){
+        item.save();
         res.redirect("/");
+    }else{
+        List.findOne({name: listName}, function(err, foundItem){
+            if(err){
+                console.log(err);
+            }else{
+                foundItem.toDo.push(item);
+                foundItem.save();
+                res.redirect("/" + listName);
+            }
+        })
     }
-    
 });
 
 app.post("/delete", function(req, res){
-    console.log(req.body.checkBox);
     Item.findByIdAndRemove(req.body.checkBox, function(err){
         if(!err){
             res.redirect("/");
@@ -83,24 +94,30 @@ app.post("/delete", function(req, res){
             console.log(err);
         }
     })
-    //Item.deleteOne({_id: req.body.checkBox});
-    //Item.deleteById(req.body.checkBox);
-    
-})
-
-app.get("/work", function(req, res){
-    res.render("list", {listTitle: "Work", listItems: work})
 })
 
 
-app.post("/work", function(req, res){
-    
-})
+app.get("/:customListName", function(req, res){
 
-app.get("/about", function(req, res){
-    res.render("about");
-}
-)
+    const customListName = req.params.customListName;
+
+   
+
+    List.findOne({name: customListName}, function(err, foundList){
+        if(err){
+            console.log(err);
+        }else if(!foundList){
+            const list = new List({
+                name: customListName,
+                toDo: defaultItems
+            })
+            list.save();
+            res.redirect("/" +customListName);
+        }else{
+            res.render("list", {listTitle: customListName, itemsList: foundList.toDo});
+        }
+    })
+})
 
 app.listen(3000, function(){
     console.log("Server is on port 3000");
